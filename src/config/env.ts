@@ -1,0 +1,13 @@
+﻿
+import dotenv from 'dotenv'
+
+dotenv.config({ path: '.env.development' })
+
+export const env = {
+    PORT: Number(process.env.PORT) || 3000,
+    MONGO_URI: process.env.DB_URI!,
+    REDIS_URL: process.env.REDIS_URI!,
+    EMAIL_USER: process.env.APP_EMAIL!,
+    EMAIL_PASS: process.env.APP_PASSWORD!,
+    ENCRYPTION_KEY: process.env.ENC_KEY!
+}
