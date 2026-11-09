@@ -1,5 +1,4 @@
-﻿
-import dotenv from 'dotenv'
+﻿import dotenv from 'dotenv'
 
 dotenv.config({ path: '.env.development' })
 
@@ -9,5 +8,6 @@ export const env = {
     REDIS_URL: process.env.REDIS_URI!,
     EMAIL_USER: process.env.APP_EMAIL!,
     EMAIL_PASS: process.env.APP_PASSWORD!,
-    ENCRYPTION_KEY: process.env.ENC_KEY!
+    ENCRYPTION_KEY: process.env.ENC_KEY!,
+    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!
 }

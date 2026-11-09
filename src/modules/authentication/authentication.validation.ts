@@ -15,3 +15,10 @@ export const confirmEmailSchema = z.object({
         code: z.string().length(6)
     })
 })
+
+export const loginSchema = z.object({
+    body: z.object({
+        email: z.string().email(),
+        password: z.string().min(8)
+    })
+})

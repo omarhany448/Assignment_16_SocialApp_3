@@ -48,3 +48,22 @@ export const confirmEmail = async (
         next(error)
     }
 }
+
+export const login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await authenticationService.login(req.body)
+
+        res.status(200).json(
+            successResponse({
+                message: 'Login successful',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}

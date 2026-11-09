@@ -1,11 +1,21 @@
 ﻿import { randomInt } from 'node:crypto'
 import { BaseRepository } from '../../common/repository/index.js'
-import { hashPassword } from '../../common/security/password.security.js'
+import { hashPassword, comparePassword } from '../../common/security/index.js'
+import { generateAccessToken } from '../../common/security/token.security.js'
 import { sendEmail } from '../../common/utils/email.utils.js'
 import { redis } from '../../common/redis/redis.client.js'
-import { ConflictException, BadRequestException, NotFoundException } from '../../common/exceptions/error.exception.js'
+import {
+    ConflictException,
+    BadRequestException,
+    NotFoundException,
+    UnauthorizedException
+} from '../../common/exceptions/error.exception.js'
 import { UserModel } from '../../DB/model/user.model.js'
-import type { SignupDTO, ConfirmEmailDTO } from './authentication.dto.js'
+import type {
+    SignupDTO,
+    ConfirmEmailDTO,
+    LoginDTO
+} from './authentication.dto.js'
 
 const userRepository = new BaseRepository(UserModel)
 
@@ -76,5 +86,42 @@ export const confirmEmail = async (data: ConfirmEmailDTO) => {
     return {
         email,
         isVerified: true
+    }
+}
+
+export const login = async (data: LoginDTO) => {
+    const email = data.email.toLowerCase()
+
+    const user = await userRepository.findOne({ email })
+
+    if (!user) {
+        throw new UnauthorizedException('Invalid email or password')
+    }
+
+    const isPasswordCorrect = await comparePassword(
+        data.password,
+        user.password
+    )
+
+    if (!isPasswordCorrect) {
+        throw new UnauthorizedException('Invalid email or password')
+    }
+
+    if (!user.isVerified) {
+        throw new UnauthorizedException('Please verify your email first')
+    }
+
+    const accessToken = generateAccessToken(user._id.toString())
+
+    return {
+        accessToken,
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        user: {
+            id: user._id.toString(),
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email
+        }
     }
 }
