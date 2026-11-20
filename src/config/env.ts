@@ -9,5 +9,8 @@ export const env = {
     EMAIL_USER: process.env.APP_EMAIL!,
     EMAIL_PASS: process.env.APP_PASSWORD!,
     ENCRYPTION_KEY: process.env.ENC_KEY!,
-    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!
+    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!,
+    AWS_REGION: process.env.AWS_REGION!,
+    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET!
 }
+

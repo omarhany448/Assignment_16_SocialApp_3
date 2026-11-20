@@ -1,0 +1,1893 @@
+﻿PROJECT STRUCTURE
+Folder PATH listing for volume New Volume
+Volume serial number is 000000FC 4E38:0343
+D:\SAVE\ROUTE\BACK\SESSION\WEEK 18\SRC
+│   index.ts
+│   main.ts
+│   
+├───common
+│   │   validation.ts
+│   │   
+│   ├───DTO
+│   ├───enum
+│   │       index.ts
+│   │       
+│   ├───exceptions
+│   │       error.exception.ts
+│   │       index.ts
+│   │       
+│   ├───redis
+│   │       redis.client.ts
+│   │       
+│   ├───repository
+│   │       base.repository.ts
+│   │       index.ts
+│   │       
+│   ├───security
+│   │       encryption.security.ts
+│   │       index.ts
+│   │       password.security.ts
+│   │       token.security.ts
+│   │       
+│   ├───types
+│   │       express.d.ts
+│   │       
+│   └───utils
+│           email.utils.ts
+│           index.ts
+│           s3.utils.ts
+│           success.response.ts
+│           
+├───config
+│       env.ts
+│       s3.config.ts
+│       
+├───DB
+│   │   connection.db.ts
+│   │   
+│   └───model
+│           comment.model.ts
+│           post.model.ts
+│           user.model.ts
+│           
+├───middleware
+│       authentication.middleware.ts
+│       error.middleware.ts
+│       validation.middleware.ts
+│       
+└───modules
+    ├───authentication
+    │       authentication.controller.ts
+    │       authentication.dto.ts
+    │       authentication.routes.ts
+    │       authentication.service.ts
+    │       authentication.validation.ts
+    │       index.ts
+    │       
+    ├───comment
+    │       comment.controller.ts
+    │       comment.dto.ts
+    │       comment.routes.ts
+    │       comment.service.ts
+    │       comment.validation.ts
+    │       index.ts
+    │       
+    ├───post
+    │       index.ts
+    │       post.controller.ts
+    │       post.dto.ts
+    │       post.routes.ts
+    │       post.service.ts
+    │       post.validation.ts
+    │       
+    └───user
+
+
+SOURCE FILES
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\enum\index.ts ==========
+export enum Role {
+    USER = 0,
+    ADMIN = 1
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\exceptions\error.exception.ts ==========
+export class ErrorException extends Error {
+    constructor(
+        message: string,
+        public statusCode: number = 500
+    ) {
+        super(message)
+
+        this.name = this.constructor.name
+        Error.captureStackTrace(this, this.constructor)
+    }
+}
+
+export class BadRequestException extends ErrorException {
+    constructor(message: string, details?: unknown) {
+        super(message, 400)
+
+        if (details !== undefined) {
+            Object.assign(this, { details })
+        }
+    }
+}
+
+export class NotFoundException extends ErrorException {
+    constructor(message = 'Resource not found') {
+        super(message, 404)
+    }
+}
+
+export class UnauthorizedException extends ErrorException {
+    constructor(message = 'Unauthorized') {
+        super(message, 401)
+    }
+}
+
+export class ConflictException extends ErrorException {
+    constructor(message = 'Conflict') {
+        super(message, 409)
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\exceptions\index.ts ==========
+export * from './error.exception.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\redis\redis.client.ts ==========
+
+import { Redis } from 'ioredis'
+import { env } from '../../config/env.js'
+
+export const redis = new Redis(env.REDIS_URL, {
+    lazyConnect: true,
+    maxRetriesPerRequest: 1
+})
+
+export const connectRedis = async (): Promise<void> => {
+    if (redis.status === 'wait') {
+        await redis.connect()
+    }
+
+    await redis.ping()
+
+    console.log('Redis connected successfully')
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\repository\base.repository.ts ==========
+import type {
+    QueryFilter,
+    HydratedDocument,
+    Model,
+    UpdateQuery
+} from 'mongoose'
+
+export class BaseRepository<T extends {}> {
+    constructor(private readonly model: Model<T>) {}
+
+    async create(data: Partial<T>): Promise<HydratedDocument<T>> {
+        return await this.model.create(data)
+    }
+
+    findOne(filter: QueryFilter<T>): Promise<HydratedDocument<T> | null>
+    findOne(filter: QueryFilter<T>, options: { lean: true }): Promise<T | null>
+    async findOne(
+        filter: QueryFilter<T>,
+        options?: { lean: true }
+    ): Promise<HydratedDocument<T> | T | null> {
+        const query = this.model.findOne(filter)
+
+        if (options?.lean) {
+            return await query.lean().exec() as T | null
+        }
+
+        return await query.exec()
+    }
+
+    async findById(id: string): Promise<HydratedDocument<T> | null> {
+        return await this.model.findById(id).exec()
+    }
+
+    async findMany(filter: QueryFilter<T> = {}): Promise<HydratedDocument<T>[]> {
+        return await this.model.find(filter).exec()
+    }
+
+    async updateOne(
+        filter: QueryFilter<T>,
+        update: UpdateQuery<T>
+    ) {
+        return await this.model.updateOne(filter, update).exec()
+    }
+
+    async findOneAndUpdate(
+        filter: QueryFilter<T>,
+        update: UpdateQuery<T>
+    ): Promise<HydratedDocument<T> | null> {
+        return await this.model.findOneAndUpdate(
+            filter,
+            update,
+            { new: true }
+        ).exec()
+    }
+
+    async deleteOne(filter: QueryFilter<T>) {
+        return await this.model.deleteOne(filter).exec()
+    }
+
+    async findOneAndDelete(
+        filter: QueryFilter<T>
+    ): Promise<HydratedDocument<T> | null> {
+        return await this.model.findOneAndDelete(filter).exec()
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\repository\index.ts ==========
+export * from './base.repository.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\security\encryption.security.ts ==========
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
+import { env } from '../../config/env.js'
+
+const algorithm = 'aes-256-gcm'
+
+const getEncryptionKey = (): Buffer => {
+    const key = Buffer.from(env.ENCRYPTION_KEY, 'hex')
+
+    if (key.length !== 32) {
+        throw new Error('ENCRYPTION_KEY must be a 64-character hexadecimal value')
+    }
+
+    return key
+}
+
+export const encrypt = (value: string): string => {
+    const iv = randomBytes(12)
+    const cipher = createCipheriv(algorithm, getEncryptionKey(), iv)
+
+    const encrypted = Buffer.concat([
+        cipher.update(value, 'utf8'),
+        cipher.final()
+    ])
+
+    const authTag = cipher.getAuthTag()
+
+    return [
+        iv.toString('hex'),
+        authTag.toString('hex'),
+        encrypted.toString('hex')
+    ].join(':')
+}
+
+export const decrypt = (encryptedValue: string): string => {
+    const [ivValue, authTagValue, encryptedText] = encryptedValue.split(':')
+
+    if (!ivValue || !authTagValue || !encryptedText) {
+        throw new Error('Invalid encrypted value')
+    }
+
+    const decipher = createDecipheriv(
+        algorithm,
+        getEncryptionKey(),
+        Buffer.from(ivValue, 'hex')
+    )
+
+    decipher.setAuthTag(Buffer.from(authTagValue, 'hex'))
+
+    const decrypted = Buffer.concat([
+        decipher.update(Buffer.from(encryptedText, 'hex')),
+        decipher.final()
+    ])
+
+    return decrypted.toString('utf8')
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\security\index.ts ==========
+export { hashPassword, comparePassword } from './password.security.js'
+export { encrypt, decrypt } from './encryption.security.js'
+export { generateAccessToken, verifyAccessToken } from './token.security.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\security\password.security.ts ==========
+import bcrypt from 'bcryptjs'
+
+export const hashPassword = async (password: string): Promise<string> => {
+    return await bcrypt.hash(password, 12)
+}
+
+export const comparePassword = async (
+    password: string,
+    hashedPassword: string
+): Promise<boolean> => {
+    return await bcrypt.compare(password, hashedPassword)
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\security\token.security.ts ==========
+import { createHmac, timingSafeEqual } from 'node:crypto'
+import { env } from '../../config/env.js'
+import { UnauthorizedException } from '../exceptions/error.exception.js'
+
+interface TokenPayload {
+    sub: string
+    exp: number
+}
+
+const getSecret = (): string => {
+    if (!env.ACCESS_TOKEN_SECRET || env.ACCESS_TOKEN_SECRET.length < 32) {
+        throw new Error('ACCESS_TOKEN_SECRET must contain at least 32 characters')
+    }
+
+    return env.ACCESS_TOKEN_SECRET
+}
+
+export const generateAccessToken = (userId: string): string => {
+    const header = Buffer.from(
+        JSON.stringify({ alg: 'HS256', typ: 'JWT' })
+    ).toString('base64url')
+
+    const payload: TokenPayload = {
+        sub: userId,
+        exp: Math.floor(Date.now() / 1000) + 3600
+    }
+
+    const encodedPayload = Buffer.from(
+        JSON.stringify(payload)
+    ).toString('base64url')
+
+    const data = `${header}.${encodedPayload}`
+
+    const signature = createHmac('sha256', getSecret())
+        .update(data)
+        .digest('base64url')
+
+    return `${data}.${signature}`
+}
+
+export const verifyAccessToken = (token: string): TokenPayload => {
+    try {
+        const parts = token.split('.')
+
+        if (parts.length !== 3) {
+            throw new Error()
+        }
+
+        const [header, payload, signature] = parts
+
+        if (!header || !payload || !signature) {
+            throw new Error()
+        }
+
+        const decodedHeader = JSON.parse(
+            Buffer.from(header, 'base64url').toString('utf8')
+        )
+
+        if (decodedHeader.alg !== 'HS256' || decodedHeader.typ !== 'JWT') {
+            throw new Error()
+        }
+
+        const data = `${header}.${payload}`
+
+        const expectedSignature = createHmac('sha256', getSecret())
+            .update(data)
+            .digest()
+
+        const actualSignature = Buffer.from(signature, 'base64url')
+
+        if (
+            expectedSignature.length !== actualSignature.length ||
+            !timingSafeEqual(expectedSignature, actualSignature)
+        ) {
+            throw new Error()
+        }
+
+        const decodedPayload = JSON.parse(
+            Buffer.from(payload, 'base64url').toString('utf8')
+        ) as TokenPayload
+
+        if (
+            typeof decodedPayload.sub !== 'string' ||
+            typeof decodedPayload.exp !== 'number' ||
+            decodedPayload.exp <= Math.floor(Date.now() / 1000)
+        ) {
+            throw new Error()
+        }
+
+        return decodedPayload
+    } catch {
+        throw new UnauthorizedException('Invalid or expired access token')
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\types\express.d.ts ==========
+declare global {
+    namespace Express {
+        interface Request {
+            user?: {
+                id: string
+            }
+        }
+    }
+}
+
+export {}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\utils\email.utils.ts ==========
+import nodemailer from 'nodemailer'
+import { env } from '../../config/env.js'
+
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: env.EMAIL_USER,
+        pass: env.EMAIL_PASS
+    }
+})
+
+export const sendEmail = async (
+    to: string,
+    subject: string,
+    text: string
+): Promise<void> => {
+    if (!env.EMAIL_USER || !env.EMAIL_PASS) {
+        throw new Error('Email credentials are missing from the .env file')
+    }
+
+    await transporter.sendMail({
+        from: env.EMAIL_USER,
+        to,
+        subject,
+        text
+    })
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\utils\index.ts ==========
+export * from './success.response.js'
+export * from './email.utils.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\utils\s3.utils.ts ==========
+import {
+    PutObjectCommand,
+    GetObjectCommand,
+    DeleteObjectCommand,
+    DeleteObjectsCommand,
+    HeadObjectCommand
+} from '@aws-sdk/client-s3'
+interface S3UploadFile {
+    buffer: Buffer
+    originalname: string
+    mimetype: string
+}
+import { Upload } from '@aws-sdk/lib-storage'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+import { randomUUID } from 'node:crypto'
+import { s3Client, S3_BUCKET } from '../../config/s3.config.js'
+
+export const uploadAsset = async ({
+    file,
+    folder = 'assets'
+}: {
+    file: S3UploadFile
+    folder?: string
+}) => {
+    const key = `${folder}/${randomUUID()}-${file.originalname}`
+
+    await s3Client.send(new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype
+    }))
+
+    return {
+        key,
+        bucket: S3_BUCKET
+    }
+}
+
+export const uploadLargeAsset = async ({
+    file,
+    folder = 'assets'
+}: {
+    file: S3UploadFile
+    folder?: string
+}) => {
+    const key = `${folder}/${randomUUID()}-${file.originalname}`
+
+    const upload = new Upload({
+        client: s3Client,
+        params: {
+            Bucket: S3_BUCKET,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file.mimetype
+        }
+    })
+
+    await upload.done()
+
+    return {
+        key,
+        bucket: S3_BUCKET
+    }
+}
+
+export const uploadAssets = async ({
+    files,
+    folder = 'assets'
+}: {
+    files: S3UploadFile[]
+    folder?: string
+}) => {
+    return await Promise.all(
+        files.map(file => uploadAsset({ file, folder }))
+    )
+}
+
+export const getAsset = async (key: string) => {
+    return await s3Client.send(new GetObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key
+    }))
+}
+
+export const downloadAsset = async (key: string) => {
+    const command = new GetObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        ResponseContentDisposition: 'attachment'
+    })
+
+    return await s3Client.send(command)
+}
+
+export const getAssetMetadata = async (key: string) => {
+    return await s3Client.send(new HeadObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key
+    }))
+}
+
+export const deleteAsset = async (key: string) => {
+    return await s3Client.send(new DeleteObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key
+    }))
+}
+
+export const deleteAssets = async (keys: string[]) => {
+    return await s3Client.send(new DeleteObjectsCommand({
+        Bucket: S3_BUCKET,
+        Delete: {
+            Objects: keys.map(Key => ({ Key })),
+            Quiet: false
+        }
+    }))
+}
+
+export const getPreSignedUploadUrl = async ({
+    key,
+    contentType,
+    expiresIn = 900
+}: {
+    key: string
+    contentType: string
+    expiresIn?: number
+}) => {
+    const command = new PutObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key,
+        ContentType: contentType
+    })
+
+    return await getSignedUrl(s3Client, command, { expiresIn })
+}
+
+export const getPreSignedDownloadUrl = async ({
+    key,
+    expiresIn = 900
+}: {
+    key: string
+    expiresIn?: number
+}) => {
+    const command = new GetObjectCommand({
+        Bucket: S3_BUCKET,
+        Key: key
+    })
+
+    return await getSignedUrl(s3Client, command, { expiresIn })
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\utils\success.response.ts ==========
+interface SuccessResponseOptions<T> {
+    message: string
+    data?: T
+}
+
+export const successResponse = <T>({
+    message,
+    data
+}: SuccessResponseOptions<T>) => {
+    return {
+        success: true,
+        message,
+        ...(data !== undefined && { data })
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\common\validation.ts ==========
+import { z } from 'zod'
+
+export const generalValidationFields = {
+    id: z.string().regex(/^[0-9a-fA-F]{24}$/, {
+        message: 'Invalid ID'
+    }),
+
+    email: z.string().email({
+        message: 'Invalid Email'
+    }),
+
+    password: z.string().min(8, {
+        message: 'Password must be at least 8 characters'
+    }),
+
+    firstName: z.string().min(2).max(30),
+
+    lastName: z.string().min(2).max(30)
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\config\env.ts ==========
+import dotenv from 'dotenv'
+
+dotenv.config({ path: '.env.development' })
+
+export const env = {
+    PORT: Number(process.env.PORT) || 3000,
+    MONGO_URI: process.env.DB_URI!,
+    REDIS_URL: process.env.REDIS_URI!,
+    EMAIL_USER: process.env.APP_EMAIL!,
+    EMAIL_PASS: process.env.APP_PASSWORD!,
+    ENCRYPTION_KEY: process.env.ENC_KEY!,
+    ACCESS_TOKEN_SECRET: process.env.ACCESS_TOKEN_SECRET!,
+    AWS_REGION: process.env.AWS_REGION!,
+    AWS_S3_BUCKET: process.env.AWS_S3_BUCKET!
+}
+
+
+
+========== D:\Save\Route\Back\Session\week 18\src\config\s3.config.ts ==========
+import { S3Client } from '@aws-sdk/client-s3'
+import { env } from './env.js'
+
+export const s3Client = new S3Client({
+    region: env.AWS_REGION
+})
+
+export const S3_BUCKET = env.AWS_S3_BUCKET
+
+
+========== D:\Save\Route\Back\Session\week 18\src\DB\model\comment.model.ts ==========
+import mongoose, { Schema, model, Types, type HydratedDocument } from 'mongoose'
+
+export interface IComment {
+    content: string
+    postId: Types.ObjectId
+    userId: Types.ObjectId
+    isDeleted: boolean
+    deletedAt?: Date | null
+    createdAt?: Date
+    updatedAt?: Date
+}
+
+const commentSchema = new Schema<IComment>(
+    {
+        content: {
+            type: String,
+            required: true,
+            trim: true,
+            minlength: 1,
+            maxlength: 3000
+        },
+        postId: {
+            type: Schema.Types.ObjectId,
+            ref: 'Post',
+            required: true
+        },
+        userId: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
+        deletedAt: {
+            type: Date,
+            default: null
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
+commentSchema.index({ postId: 1, createdAt: -1 })
+commentSchema.index({ userId: 1 })
+
+export type CommentDocument = HydratedDocument<IComment>
+
+export const CommentModel = mongoose.models.Comment || model<IComment>('Comment', commentSchema)
+
+
+========== D:\Save\Route\Back\Session\week 18\src\DB\model\post.model.ts ==========
+import mongoose, { Schema, model, Types, type HydratedDocument } from 'mongoose'
+
+export interface IPost {
+    content: string
+    userId: Types.ObjectId
+    isDeleted: boolean
+    deletedAt?: Date | null
+    createdAt?: Date
+    updatedAt?: Date
+}
+
+const postSchema = new Schema<IPost>(
+    {
+        content: {
+            type: String,
+            required: true,
+            trim: true,
+            minlength: 1,
+            maxlength: 5000
+        },
+        userId: {
+            type: Schema.Types.ObjectId,
+            ref: 'User',
+            required: true
+        },
+        isDeleted: {
+            type: Boolean,
+            default: false
+        },
+        deletedAt: {
+            type: Date,
+            default: null
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
+postSchema.index({ userId: 1, createdAt: -1 })
+
+export type PostDocument = HydratedDocument<IPost>
+
+export const PostModel = mongoose.models.Post || model<IPost>('Post', postSchema)
+
+
+========== D:\Save\Route\Back\Session\week 18\src\DB\model\user.model.ts ==========
+import mongoose, { Schema, model, type HydratedDocument } from 'mongoose'
+
+export interface IUser {
+    firstName: string
+    lastName: string
+    email: string
+    password: string
+    isVerified: boolean
+    createdAt?: Date
+    updatedAt?: Date
+}
+
+const userSchema = new Schema<IUser>(
+    {
+        firstName: {
+            type: String,
+            required: true,
+            trim: true,
+            minlength: 2,
+            maxlength: 30
+        },
+        lastName: {
+            type: String,
+            required: true,
+            trim: true,
+            minlength: 2,
+            maxlength: 30
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            lowercase: true,
+            trim: true
+        },
+        password: {
+            type: String,
+            required: true
+        },
+        isVerified: {
+            type: Boolean,
+            default: false
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
+export type UserDocument = HydratedDocument<IUser>
+
+export const UserModel = mongoose.models.User || model<IUser>('User', userSchema)
+
+
+========== D:\Save\Route\Back\Session\week 18\src\DB\connection.db.ts ==========
+import mongoose from 'mongoose'
+import { env } from '../config/env.js'
+
+export const connectDB = async (): Promise<void> => {
+    await mongoose.connect(env.MONGO_URI)
+    console.log('Database connected successfully')
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\middleware\authentication.middleware.ts ==========
+import type { RequestHandler } from 'express'
+import { UnauthorizedException } from '../common/exceptions/error.exception.js'
+import { verifyAccessToken } from '../common/security/token.security.js'
+
+export const authenticationMiddleware: RequestHandler = (
+    req,
+    res,
+    next
+) => {
+    try {
+        const authorization = req.headers.authorization
+
+        if (!authorization?.startsWith('Bearer ')) {
+            throw new UnauthorizedException('Access token is required')
+        }
+
+        const token = authorization.slice(7)
+        const payload = verifyAccessToken(token)
+
+        req.user = {
+            id: payload.sub
+        }
+
+        next()
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\middleware\error.middleware.ts ==========
+import type { ErrorRequestHandler } from 'express'
+import { ErrorException } from '../common/exceptions/error.exception.js'
+
+export const errorMiddleware: ErrorRequestHandler = (
+    error,
+    req,
+    res,
+    next
+) => {
+    const statusCode =
+        error instanceof ErrorException ? error.statusCode : 500
+
+    res.status(statusCode).json({
+        success: false,
+        message: error.message || 'Internal Server Error'
+    })
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\middleware\validation.middleware.ts ==========
+import type { RequestHandler } from 'express'
+import { z } from 'zod'
+import { BadRequestException } from '../common/exceptions/error.exception.js'
+
+export const validationMiddleware = (
+    schema: z.ZodType
+): RequestHandler => {
+    return (req, res, next) => {
+        const result = schema.safeParse({
+            body: req.body,
+            params: req.params,
+            query: req.query
+        })
+
+        if (!result.success) {
+            return next(
+                new BadRequestException(
+                    'Validation Error',
+                    result.error.issues
+                )
+            )
+        }
+
+        next()
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\authentication.controller.ts ==========
+import type { Request, Response, NextFunction } from 'express'
+import * as authenticationService from './authentication.service.js'
+import { successResponse } from '../../common/utils/success.response.js'
+
+export const test = (
+    req: Request,
+    res: Response
+): void => {
+    res.status(200).json({
+        message: 'Authentication module is working'
+    })
+}
+
+export const signup = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await authenticationService.signup(req.body)
+
+        res.status(201).json(
+            successResponse({
+                message: 'Account created successfully. Check your email for the verification code.',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const confirmEmail = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await authenticationService.confirmEmail(req.body)
+
+        res.status(200).json(
+            successResponse({
+                message: 'Email verified successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await authenticationService.login(req.body)
+
+        res.status(200).json(
+            successResponse({
+                message: 'Login successful',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\authentication.dto.ts ==========
+export interface SignupDTO {
+    firstName: string
+    lastName: string
+    email: string
+    password: string
+}
+
+export interface ConfirmEmailDTO {
+    email: string
+    code: string
+}
+
+export interface LoginDTO {
+    email: string
+    password: string
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\authentication.routes.ts ==========
+import { Router } from 'express'
+import * as authenticationController from './authentication.controller.js'
+import { validationMiddleware } from '../../middleware/validation.middleware.js'
+import {
+    signupSchema,
+    confirmEmailSchema,
+    loginSchema
+} from './authentication.validation.js'
+
+const router = Router()
+
+router.get('/', authenticationController.test)
+
+router.post(
+    '/signup',
+    validationMiddleware(signupSchema),
+    authenticationController.signup
+)
+
+router.patch(
+    '/confirm-email',
+    validationMiddleware(confirmEmailSchema),
+    authenticationController.confirmEmail
+)
+
+router.post(
+    '/login',
+    validationMiddleware(loginSchema),
+    authenticationController.login
+)
+
+export default router
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\authentication.service.ts ==========
+import { randomInt } from 'node:crypto'
+import { BaseRepository } from '../../common/repository/index.js'
+import { hashPassword, comparePassword } from '../../common/security/index.js'
+import { generateAccessToken } from '../../common/security/token.security.js'
+import { sendEmail } from '../../common/utils/email.utils.js'
+import { redis } from '../../common/redis/redis.client.js'
+import {
+    ConflictException,
+    BadRequestException,
+    NotFoundException,
+    UnauthorizedException
+} from '../../common/exceptions/error.exception.js'
+import { UserModel } from '../../DB/model/user.model.js'
+import type {
+    SignupDTO,
+    ConfirmEmailDTO,
+    LoginDTO
+} from './authentication.dto.js'
+
+const userRepository = new BaseRepository(UserModel)
+
+export const signup = async (data: SignupDTO) => {
+    const email = data.email.toLowerCase()
+
+    const existingUser = await userRepository.findOne({ email })
+
+    if (existingUser) {
+        throw new ConflictException('Email already exists')
+    }
+
+    const hashedPassword = await hashPassword(data.password)
+
+    const user = await userRepository.create({
+        firstName: data.firstName,
+        lastName: data.lastName,
+        email,
+        password: hashedPassword,
+        isVerified: false
+    })
+
+    const code = randomInt(100000, 1000000).toString()
+
+    await redis.set(`email-verification:${email}`, code, 'EX', 300)
+
+    await sendEmail(
+        email,
+        'Email Verification',
+        `Your verification code is ${code}. It expires in 5 minutes.`
+    )
+
+    return {
+        id: user._id.toString(),
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
+        isVerified: user.isVerified
+    }
+}
+
+export const confirmEmail = async (data: ConfirmEmailDTO) => {
+    const email = data.email.toLowerCase()
+
+    const user = await userRepository.findOne({ email })
+
+    if (!user) {
+        throw new NotFoundException('User not found')
+    }
+
+    if (user.isVerified) {
+        throw new BadRequestException('Email is already verified')
+    }
+
+    const savedCode = await redis.get(`email-verification:${email}`)
+
+    if (!savedCode || savedCode !== data.code) {
+        throw new BadRequestException('Invalid or expired verification code')
+    }
+
+    await userRepository.updateOne(
+        { email },
+        { $set: { isVerified: true } }
+    )
+
+    await redis.del(`email-verification:${email}`)
+
+    return {
+        email,
+        isVerified: true
+    }
+}
+
+export const login = async (data: LoginDTO) => {
+    const email = data.email.toLowerCase()
+
+    const user = await userRepository.findOne({ email })
+
+    if (!user) {
+        throw new UnauthorizedException('Invalid email or password')
+    }
+
+    const isPasswordCorrect = await comparePassword(
+        data.password,
+        user.password
+    )
+
+    if (!isPasswordCorrect) {
+        throw new UnauthorizedException('Invalid email or password')
+    }
+
+    if (!user.isVerified) {
+        throw new UnauthorizedException('Please verify your email first')
+    }
+
+    const accessToken = generateAccessToken(user._id.toString())
+
+    return {
+        accessToken,
+        tokenType: 'Bearer',
+        expiresIn: 3600,
+        user: {
+            id: user._id.toString(),
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email
+        }
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\authentication.validation.ts ==========
+import { z } from 'zod'
+
+export const signupSchema = z.object({
+    body: z.object({
+        firstName: z.string().min(2).max(30),
+        lastName: z.string().min(2).max(30),
+        email: z.string().email(),
+        password: z.string().min(8)
+    })
+})
+
+export const confirmEmailSchema = z.object({
+    body: z.object({
+        email: z.string().email(),
+        code: z.string().length(6)
+    })
+})
+
+export const loginSchema = z.object({
+    body: z.object({
+        email: z.string().email(),
+        password: z.string().min(8)
+    })
+})
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\authentication\index.ts ==========
+export { default } from './authentication.routes.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\comment.controller.ts ==========
+import type { Request, Response, NextFunction } from 'express'
+import * as commentService from './comment.service.js'
+import { successResponse } from '../../common/utils/success.response.js'
+
+export const createComment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await commentService.createComment(
+            String(req.params.postId),
+            req.user!.id,
+            req.body
+        )
+
+        res.status(201).json(
+            successResponse({
+                message: 'Comment created successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getPostComments = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await commentService.getPostComments(
+            String(req.params.postId)
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Comments retrieved successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getCommentById = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await commentService.getCommentById(
+            String(req.params.id)
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Comment retrieved successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const updateComment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await commentService.updateComment(
+            String(req.params.id),
+            req.user!.id,
+            req.body
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Comment updated successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const deleteComment = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await commentService.deleteComment(
+            String(req.params.id),
+            req.user!.id
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Comment deleted successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\comment.dto.ts ==========
+export interface CreateCommentDTO {
+    content: string
+}
+
+export interface UpdateCommentDTO {
+    content: string
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\comment.routes.ts ==========
+import { Router } from 'express'
+import * as commentController from './comment.controller.js'
+import { authenticationMiddleware } from '../../middleware/authentication.middleware.js'
+import { validationMiddleware } from '../../middleware/validation.middleware.js'
+import {
+    createCommentSchema,
+    postCommentsSchema,
+    commentIdSchema,
+    updateCommentSchema
+} from './comment.validation.js'
+
+const router = Router()
+
+router.use(authenticationMiddleware)
+
+router.post(
+    '/posts/:postId/comments',
+    validationMiddleware(createCommentSchema),
+    commentController.createComment
+)
+
+router.get(
+    '/posts/:postId/comments',
+    validationMiddleware(postCommentsSchema),
+    commentController.getPostComments
+)
+
+router.get(
+    '/comments/:id',
+    validationMiddleware(commentIdSchema),
+    commentController.getCommentById
+)
+
+router.patch(
+    '/comments/:id',
+    validationMiddleware(updateCommentSchema),
+    commentController.updateComment
+)
+
+router.delete(
+    '/comments/:id',
+    validationMiddleware(commentIdSchema),
+    commentController.deleteComment
+)
+
+export default router
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\comment.service.ts ==========
+import { Types } from 'mongoose'
+import { BaseRepository } from '../../common/repository/index.js'
+import {
+    NotFoundException,
+    UnauthorizedException
+} from '../../common/exceptions/error.exception.js'
+import { PostModel } from '../../DB/model/post.model.js'
+import { CommentModel } from '../../DB/model/comment.model.js'
+import type {
+    CreateCommentDTO,
+    UpdateCommentDTO
+} from './comment.dto.js'
+
+const postRepository = new BaseRepository(PostModel)
+const commentRepository = new BaseRepository(CommentModel)
+
+export const createComment = async (
+    postId: string,
+    userId: string,
+    data: CreateCommentDTO
+) => {
+    const post = await postRepository.findOne({
+        _id: new Types.ObjectId(postId),
+        isDeleted: false
+    })
+
+    if (!post) {
+        throw new NotFoundException('Post not found')
+    }
+
+    return await commentRepository.create({
+        content: data.content,
+        postId: new Types.ObjectId(postId),
+        userId: new Types.ObjectId(userId)
+    })
+}
+
+export const getPostComments = async (postId: string) => {
+    const post = await postRepository.findOne({
+        _id: new Types.ObjectId(postId),
+        isDeleted: false
+    })
+
+    if (!post) {
+        throw new NotFoundException('Post not found')
+    }
+
+    return await commentRepository.findMany({
+        postId: new Types.ObjectId(postId),
+        isDeleted: false
+    })
+}
+
+export const getCommentById = async (commentId: string) => {
+    const comment = await commentRepository.findOne({
+        _id: new Types.ObjectId(commentId),
+        isDeleted: false
+    })
+
+    if (!comment) {
+        throw new NotFoundException('Comment not found')
+    }
+
+    return comment
+}
+
+export const updateComment = async (
+    commentId: string,
+    userId: string,
+    data: UpdateCommentDTO
+) => {
+    const comment = await commentRepository.findOneAndUpdate(
+        {
+            _id: new Types.ObjectId(commentId),
+            userId: new Types.ObjectId(userId),
+            isDeleted: false
+        },
+        {
+            $set: {
+                content: data.content
+            }
+        }
+    )
+
+    if (!comment) {
+        throw new NotFoundException('Comment not found or you are not the owner')
+    }
+
+    return comment
+}
+
+export const deleteComment = async (
+    commentId: string,
+    userId: string
+) => {
+    const comment = await commentRepository.findOne({
+        _id: new Types.ObjectId(commentId),
+        isDeleted: false
+    })
+
+    if (!comment) {
+        throw new NotFoundException('Comment not found')
+    }
+
+    const isCommentOwner = comment.userId.toString() === userId
+
+    if (!isCommentOwner) {
+        const post = await postRepository.findById(comment.postId.toString())
+
+        if (!post || post.userId.toString() !== userId) {
+            throw new UnauthorizedException(
+                'Only the comment owner or post owner can delete this comment'
+            )
+        }
+    }
+
+    await commentRepository.findOneAndUpdate(
+        {
+            _id: comment._id,
+            isDeleted: false
+        },
+        {
+            $set: {
+                isDeleted: true,
+                deletedAt: new Date()
+            }
+        }
+    )
+
+    return {
+        id: comment._id.toString(),
+        isDeleted: true
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\comment.validation.ts ==========
+import { z } from 'zod'
+
+const idSchema = z.string().regex(/^[0-9a-fA-F]{24}$/)
+
+export const createCommentSchema = z.object({
+    params: z.object({
+        postId: idSchema
+    }),
+    body: z.object({
+        content: z.string().trim().min(1).max(3000)
+    })
+})
+
+export const postCommentsSchema = z.object({
+    params: z.object({
+        postId: idSchema
+    })
+})
+
+export const commentIdSchema = z.object({
+    params: z.object({
+        id: idSchema
+    })
+})
+
+export const updateCommentSchema = z.object({
+    params: z.object({
+        id: idSchema
+    }),
+    body: z.object({
+        content: z.string().trim().min(1).max(3000)
+    })
+})
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\comment\index.ts ==========
+export { default } from './comment.routes.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\index.ts ==========
+export { default } from './post.routes.js'
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\post.controller.ts ==========
+import type { Request, Response, NextFunction } from 'express'
+import * as postService from './post.service.js'
+import { successResponse } from '../../common/utils/success.response.js'
+
+export const createPost = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await postService.createPost(req.body, req.user!.id)
+
+        res.status(201).json(
+            successResponse({
+                message: 'Post created successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getAllPosts = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await postService.getAllPosts(req.user!.id)
+
+        res.status(200).json(
+            successResponse({
+                message: 'Posts retrieved successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const getPostById = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await postService.getPostById(String(req.params.id))
+
+        res.status(200).json(
+            successResponse({
+                message: 'Post retrieved successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const updatePost = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await postService.updatePost(
+            String(req.params.id),
+            req.user!.id,
+            req.body
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Post updated successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const deletePost = async (
+    req: Request,
+    res: Response,
+    next: NextFunction
+): Promise<void> => {
+    try {
+        const result = await postService.deletePost(
+            String(req.params.id),
+            req.user!.id
+        )
+
+        res.status(200).json(
+            successResponse({
+                message: 'Post deleted successfully',
+                data: result
+            })
+        )
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\post.dto.ts ==========
+export interface CreatePostDTO {
+    content: string
+}
+
+export interface UpdatePostDTO {
+    content: string
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\post.routes.ts ==========
+import { Router } from 'express'
+import * as postController from './post.controller.js'
+import { authenticationMiddleware } from '../../middleware/authentication.middleware.js'
+import { validationMiddleware } from '../../middleware/validation.middleware.js'
+import {
+    createPostSchema,
+    updatePostSchema,
+    postIdSchema
+} from './post.validation.js'
+
+const router = Router()
+
+router.use(authenticationMiddleware)
+
+router.post(
+    '/',
+    validationMiddleware(createPostSchema),
+    postController.createPost
+)
+
+router.get('/', postController.getAllPosts)
+
+router.get(
+    '/:id',
+    validationMiddleware(postIdSchema),
+    postController.getPostById
+)
+
+router.patch(
+    '/:id',
+    validationMiddleware(updatePostSchema),
+    postController.updatePost
+)
+
+router.delete(
+    '/:id',
+    validationMiddleware(postIdSchema),
+    postController.deletePost
+)
+
+export default router
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\post.service.ts ==========
+import { Types } from 'mongoose'
+import { BaseRepository } from '../../common/repository/index.js'
+import { NotFoundException } from '../../common/exceptions/error.exception.js'
+import { PostModel } from '../../DB/model/post.model.js'
+import type { CreatePostDTO, UpdatePostDTO } from './post.dto.js'
+
+const postRepository = new BaseRepository(PostModel)
+
+export const createPost = async (
+    data: CreatePostDTO,
+    userId: string
+) => {
+    return await postRepository.create({
+        content: data.content,
+        userId: new Types.ObjectId(userId)
+    })
+}
+
+export const getAllPosts = async (userId: string) => {
+    return await postRepository.findMany({
+        userId: new Types.ObjectId(userId),
+        isDeleted: false
+    })
+}
+
+export const getPostById = async (postId: string) => {
+    const post = await postRepository.findOne({
+        _id: new Types.ObjectId(postId),
+        isDeleted: false
+    })
+
+    if (!post) {
+        throw new NotFoundException('Post not found')
+    }
+
+    return post
+}
+
+export const updatePost = async (
+    postId: string,
+    userId: string,
+    data: UpdatePostDTO
+) => {
+    const post = await postRepository.findOneAndUpdate(
+        {
+            _id: new Types.ObjectId(postId),
+            userId: new Types.ObjectId(userId),
+            isDeleted: false
+        },
+        {
+            $set: {
+                content: data.content
+            }
+        }
+    )
+
+    if (!post) {
+        throw new NotFoundException('Post not found or you are not the owner')
+    }
+
+    return post
+}
+
+export const deletePost = async (
+    postId: string,
+    userId: string
+) => {
+    const post = await postRepository.findOneAndUpdate(
+        {
+            _id: new Types.ObjectId(postId),
+            userId: new Types.ObjectId(userId),
+            isDeleted: false
+        },
+        {
+            $set: {
+                isDeleted: true,
+                deletedAt: new Date()
+            }
+        }
+    )
+
+    if (!post) {
+        throw new NotFoundException('Post not found or you are not the owner')
+    }
+
+    return {
+        id: post._id.toString(),
+        isDeleted: true
+    }
+}
+
+
+========== D:\Save\Route\Back\Session\week 18\src\modules\post\post.validation.ts ==========
+import { z } from 'zod'
+
+const idSchema = z.string().regex(/^[0-9a-fA-F]{24}$/)
+
+export const createPostSchema = z.object({
+    body: z.object({
+        content: z.string().trim().min(1).max(5000)
+    })
+})
+
+export const updatePostSchema = z.object({
+    params: z.object({
+        id: idSchema
+    }),
+    body: z.object({
+        content: z.string().trim().min(1).max(5000)
+    })
+})
+
+export const postIdSchema = z.object({
+    params: z.object({
+        id: idSchema
+    })
+})
+
+
+========== D:\Save\Route\Back\Session\week 18\src\index.ts ==========
+import express from 'express'
+import authenticationRouter from './modules/authentication/index.js'
+import postRouter from './modules/post/index.js'
+import commentRouter from './modules/comment/index.js'
+import { errorMiddleware } from './middleware/error.middleware.js'
+
+const app: express.Application = express()
+
+app.use(express.json())
+
+app.use('/auth', authenticationRouter)
+app.use('/posts', postRouter)
+app.use('/', commentRouter)
+
+app.use(errorMiddleware)
+
+export default app
+
+
+========== D:\Save\Route\Back\Session\week 18\src\main.ts ==========
+import app from './index.js'
+import { env } from './config/env.js'
+import { connectDB } from './DB/connection.db.js'
+import { connectRedis } from './common/redis/redis.client.js'
+
+const bootstrap = async (): Promise<void> => {
+    await connectDB()
+    await connectRedis()
+
+    app.listen(env.PORT, () => {
+        console.log(`Server is running on port ${env.PORT}`)
+    })
+}
+
+bootstrap().catch((error: unknown) => {
+    console.error('Application failed to start:', error)
+    process.exit(1)
+})
